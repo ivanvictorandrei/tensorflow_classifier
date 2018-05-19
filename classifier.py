@@ -113,7 +113,7 @@ class Classifier:
 		self.__build_layers__()
 		self.ops = []
 		for layer in range(self.layers_num):
-			if layer == 0:
+			if layer == self.layers_num-1:
 				self.ops.append((
 					tf.matmul(self.x, self.variables[layer][self.WEIGHTS]) + 
 					self.variables[layer][self.BIASES]))
@@ -126,11 +126,16 @@ class Classifier:
 		self.__build_net__()
 		self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y, 
 			logits=self.ops[self.layers_num-1]))
-		self.train_op = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
+		self.output = self.ops[self.layers_num-1]
+		self.predictions = tf.argmax(self.output, axis=1, output_type=tf.int32)
+		self.correct_predictions = tf.cast(tf.equal(self.predictions, self.y),
+			tf.float32)
+		self.accuracy = tf.reduce_mean(self.correct_predictions)*100
+		self.train_op = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
 
 if __name__ == "__main__":
-	EPOCHS = 100000
+	EPOCHS = 1000
 
 	dataset = Dataset()
 
@@ -145,18 +150,16 @@ if __name__ == "__main__":
 			classifier.y: dataset.train_labels
 			}))
 		for e in range(EPOCHS):
-			for _ in range(dataset.get_train_set_length()//dataset.BATCH_SIZE):
-				examples_batch, labels_batch = dataset.next_batch()
-				sess.run(classifier.train_op, feed_dict={
-					classifier.x: examples_batch,
-					classifier.y: labels_batch
-					})
-			if e == 0 or e == 9999 or e % 1000 == 0:
-				print("epoch:", e, "train acc:", sess.run(classifier.loss, feed_dict={
+			sess.run(classifier.train_op, feed_dict={
+				classifier.x: dataset.train_examples,
+				classifier.y: dataset.train_labels
+				})
+			if e == 0 or e == EPOCHS-1 or e % 10 == 0:
+				print("epoch:", e, "train acc:", sess.run(classifier.accuracy, feed_dict={
 					classifier.x: dataset.train_examples,
 					classifier.y: dataset.train_labels
 					}))
-		print("test acc:", sess.run(classifier.loss, feed_dict={
+		print("test acc:", sess.run(classifier.accuracy, feed_dict={
 			classifier.x: dataset.test_examples,
 			classifier.y: dataset.test_labels
 			}))
